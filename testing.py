@@ -289,4 +289,25 @@ final_summary = pd.DataFrame({
 print("\nFinal feature set (Top 10 by WAR correlation + advanced features) with correlations to WAR and AAV:")
 print(final_summary.to_string(float_format=lambda x: f"{x:0.3f}"))
 
-print('hey there')
+from sklearn.linear_model import LinearRegression
+
+# 1. Filter for players who actually have a contract (AAV) and enough data
+df_market = df.dropna(subset=['AAV'] + final_features).copy()
+
+# 2. Define Features (X) and Target (y)
+X = df_market[final_features]
+y = df_market['AAV']
+
+# 3. Fit the Market Model
+model = LinearRegression()
+model.fit(X, y)
+
+# 4. Generate "Fair Market Value" (FMV) and Residuals
+df_market['Predicted_AAV'] = model.predict(X)
+df_market['Market_Surplus'] = df_market['Predicted_AAV'] - df_market['AAV']
+
+# 5. Identify the Top 10 "Value Deployments"
+arbitrage_targets = df_market.sort_values(by='Market_Surplus', ascending=False).head(10)
+
+print("\n--- TOP ARBITRAGE TARGETS (Undervalued based on Statcast) ---")
+print(arbitrage_targets[['player_key', 'AAV', 'Predicted_AAV', 'Market_Surplus']])
