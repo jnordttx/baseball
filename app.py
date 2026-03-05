@@ -164,7 +164,7 @@ df = get_data()
 if df is not None:
     # Sidebar
     st.sidebar.title("💎 Strategy Room")
-    nav = st.sidebar.radio("Navigation", ["Central Dashboard", "Team Strategy Room", "Scavenger List"])
+    nav = st.sidebar.radio("Navigation", ["Central Dashboard", "Team Strategy Room", "Breakout Stars"])
 
     # Global Filter
     filtered_df = df[df['AAV'] > 0]
@@ -172,12 +172,15 @@ if df is not None:
     # --- SHARED: BREAKOUT SCORE (used in Team Strategy Room + Scavenger List) ---
     PITCHER_POS = ['SP', 'RP', 'P', '1', '/1']
     BREAKOUT_METRICS = [
-        'meatball_swing_percent',
-        'oz_swing_percent',
-        'xwoba',
-        'barrel_batted_rate',
-        'sweet_spot_percent',
-        'exit_velocity_avg',
+        'meatball_swing_percent',   # high = good
+        'oz_swing_percent',         # high = BAD (inverted)
+        'barrel_batted_rate',       # high = good
+        'sweet_spot_percent',       # high = good
+        'exit_velocity_avg',        # high = good
+        'fast_swing_rate',          # high = good
+        'attack_angle',             # high = good
+        'launch_angle_avg',         # high = good
+        'iz_contact_percent',       # high = good
     ]
     all_pos = df[~df['Pos'].isin(PITCHER_POS)].dropna(subset=BREAKOUT_METRICS).copy()
     for _col in BREAKOUT_METRICS:
@@ -297,23 +300,29 @@ if df is not None:
                     'player_key': 'Player',
                     'player_age': 'Age',
                     'WAR': 'WAR',
-                    'xwoba': 'xwOBA',
                     'meatball_swing_percent': 'Meatball%',
                     'oz_swing_percent': 'Chase%',
                     'barrel_batted_rate': 'Barrel%',
                     'sweet_spot_percent': 'Sweet Spot%',
                     'exit_velocity_avg': 'Exit Velo',
+                    'fast_swing_rate': 'Fast Swing%',
+                    'attack_angle': 'Attack Angle',
+                    'launch_angle_avg': 'Launch Angle',
+                    'iz_contact_percent': 'IZ Contact%',
                     'Breakout Score': 'Breakout Score',
                 }
                 bc = team_breakout.sort_values('Breakout Score', ascending=False)[list(display_cols.keys())].rename(columns=display_cols).copy()
                 bc['Age'] = bc['Age'].apply(lambda x: f"{int(x)}")
                 bc['WAR'] = bc['WAR'].apply(lambda x: f"{x:.1f}")
-                bc['xwOBA'] = bc['xwOBA'].apply(lambda x: f"{x:.3f}")
                 bc['Meatball%'] = bc['Meatball%'].apply(lambda x: f"{x:.1f}%")
                 bc['Chase%'] = bc['Chase%'].apply(lambda x: f"{x:.1f}%")
                 bc['Barrel%'] = bc['Barrel%'].apply(lambda x: f"{x:.1f}%")
                 bc['Sweet Spot%'] = bc['Sweet Spot%'].apply(lambda x: f"{x:.1f}%")
                 bc['Exit Velo'] = bc['Exit Velo'].apply(lambda x: f"{x:.1f}")
+                bc['Fast Swing%'] = bc['Fast Swing%'].apply(lambda x: f"{x:.1f}%")
+                bc['Attack Angle'] = bc['Attack Angle'].apply(lambda x: f"{x:.1f}°")
+                bc['Launch Angle'] = bc['Launch Angle'].apply(lambda x: f"{x:.1f}°")
+                bc['IZ Contact%'] = bc['IZ Contact%'].apply(lambda x: f"{x:.1f}%")
                 bc['Breakout Score'] = bc['Breakout Score'].apply(lambda x: f"{x:.1f}")
                 bc = bc.reset_index(drop=True)
                 bc.index = bc.index + 1
@@ -324,37 +333,81 @@ if df is not None:
                     unsafe_allow_html=True
                 )
 
-    # --- VIEW: SCAVENGER LIST ---
-    elif nav == "Scavenger List":
+    # --- VIEW: BREAKOUT STARS ---
+    elif nav == "Breakout Stars":
         st.title("🚀 Leaguewide Breakout Stars")
         st.caption("Under 28 + WAR < 3 + Score ≥ 40, or age ≤ 25 + WAR > 4.5 — ranked by Breakout Score against all leaguewide position players.")
+
+        # Compute 60th percentile benchmarks across ALL position players
+        pct60_metrics = {
+            'meatball_swing_percent': 'Meatball%',
+            'oz_swing_percent': 'Chase%',
+            'barrel_batted_rate': 'Barrel%',
+            'sweet_spot_percent': 'Sweet Spot%',
+            'exit_velocity_avg': 'Exit Velo',
+            'fast_swing_rate': 'Fast Swing%',
+            'attack_angle': 'Attack Angle',
+            'launch_angle_avg': 'Launch Angle',
+            'iz_contact_percent': 'IZ Contact%',
+        }
+        benchmark_row = {
+            'Player': '📊 60th Pct (All Pos)',
+            'Team': '—',
+            'Age': '—',
+            'WAR': f"{all_pos['WAR'].quantile(0.6):.1f}",
+        }
+        for raw_col, display_col in pct60_metrics.items():
+            val = all_pos[raw_col].quantile(0.6)
+            if display_col in ['Attack Angle', 'Launch Angle']:
+                benchmark_row[display_col] = f"{val:.1f}°"
+            elif display_col == 'Exit Velo':
+                benchmark_row[display_col] = f"{val:.1f}"
+            else:
+                benchmark_row[display_col] = f"{val:.1f}%"
+        benchmark_row['Breakout Score'] = '—'
 
         scavenger_display_cols = {
             'player_key': 'Player',
             'Team': 'Team',
             'player_age': 'Age',
             'WAR': 'WAR',
-            'xwoba': 'xwOBA',
             'meatball_swing_percent': 'Meatball%',
             'oz_swing_percent': 'Chase%',
             'barrel_batted_rate': 'Barrel%',
             'sweet_spot_percent': 'Sweet Spot%',
             'exit_velocity_avg': 'Exit Velo',
+            'fast_swing_rate': 'Fast Swing%',
+            'attack_angle': 'Attack Angle',
+            'launch_angle_avg': 'Launch Angle',
+            'iz_contact_percent': 'IZ Contact%',
             'Breakout Score': 'Breakout Score',
         }
         sc_data = breakout_pool.sort_values('Breakout Score', ascending=False)[list(scavenger_display_cols.keys())].rename(columns=scavenger_display_cols).copy()
         sc_data['Age'] = sc_data['Age'].apply(lambda x: f"{int(x)}")
         sc_data['WAR'] = sc_data['WAR'].apply(lambda x: f"{x:.1f}")
-        sc_data['xwOBA'] = sc_data['xwOBA'].apply(lambda x: f"{x:.3f}")
         sc_data['Meatball%'] = sc_data['Meatball%'].apply(lambda x: f"{x:.1f}%")
         sc_data['Chase%'] = sc_data['Chase%'].apply(lambda x: f"{x:.1f}%")
         sc_data['Barrel%'] = sc_data['Barrel%'].apply(lambda x: f"{x:.1f}%")
         sc_data['Sweet Spot%'] = sc_data['Sweet Spot%'].apply(lambda x: f"{x:.1f}%")
         sc_data['Exit Velo'] = sc_data['Exit Velo'].apply(lambda x: f"{x:.1f}")
+        sc_data['Fast Swing%'] = sc_data['Fast Swing%'].apply(lambda x: f"{x:.1f}%")
+        sc_data['Attack Angle'] = sc_data['Attack Angle'].apply(lambda x: f"{x:.1f}°")
+        sc_data['Launch Angle'] = sc_data['Launch Angle'].apply(lambda x: f"{x:.1f}°")
+        sc_data['IZ Contact%'] = sc_data['IZ Contact%'].apply(lambda x: f"{x:.1f}%")
         sc_data['Breakout Score'] = sc_data['Breakout Score'].apply(lambda x: f"{x:.1f}")
         sc_data = sc_data.reset_index(drop=True)
+
+        # Prepend benchmark row
+        benchmark_df = pd.DataFrame([benchmark_row], index=['—'])
         sc_data.index = sc_data.index + 1
-        st.write(sc_data.to_html(escape=False), unsafe_allow_html=True)
+        sc_data = pd.concat([benchmark_df, sc_data])
+
+        st.write(
+            "<div style='margin-top: 8px;'>" +
+            sc_data.to_html(escape=False) +
+            "</div>",
+            unsafe_allow_html=True
+        )
 
 else:
     st.error("Could not load data. Please check your CSV files and column names.")
